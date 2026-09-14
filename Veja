@@ -1,0 +1,76 @@
+Act as a Senior Minecraft NMS Java Developer. I want you to modify this clean, unapplied Purpur 26.2 server source code repository. You need to create new Java classes and modify existing core code to implement the following unreleased custom server-side mechanics. 
+
+Ensure all codes handle tridimensional coordinates, packet listeners, and NBT tags strictly server-side, ensuring perfect parity for Java Vanilla and Bedrock (via Geyser) crossplay players.
+
+Follow these instructions to modify the clean codebase:
+
+---
+
+### MODULE 1: INJECT ATTRIBUTE TO ARMOR STAND ENTITY
+- Target File: `purpur-server/src/main/java/net/minecraft/world/entity/decoration/ArmorStand.java`
+- Instructions: Locate the `createAttributes()` method. Append `.add(Attributes.SCALE);` to the builder queue. This enables the Armor Stand to naturally process the global scale attribute (`minecraft:generic.scale`), forcing any item or block held on its hands/head to scale up or down proportionally on both Java and Bedrock clients while retaining fully customized pose adjustments.
+
+---
+
+### MODULE 2: SEQUENTIAL DRONE RECODER (Nether Star Tool)
+- Target File: `purpur-server/src/main/java/net/minecraft/world/item/NetherStarItem.java`
+- Instructions: Override the `useOn` method. Intercept right-clicks on `Blocks.ACACIA_LOG` blocks.
+- Mechanics:
+  - First click sets `Point A`, second click sets `Point B`. Build the 3D bounding box volume.
+  - Grab the native `StructureTemplate` class and map the region blocks into memory using `fillFromWorld()`.
+  - Loop through the mapped structure block list info palette: substitute all instances of `Blocks.ACACIA_LOG` with `Blocks.AIR` so the marker blocks are ignored and stripped from the final layout.
+  - Query the world save directories (`world/generated/structures/`) to track existing template files sequentially saved as `build1.nbt`, `build2.nbt`, etc. Write and save the current capture under the next available integer index (e.g., if build2 exists, save as `build3.nbt`) so data is never overwritten.
+
+---
+
+### MODULE 3: THE ORGANISM REFINERY (Abstract Furnace Custom Result)
+- Target File: `purpur-server/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java`
+- Instructions: Intercept the smelting completion event (`smelt`). 
+- Mechanics: If the input item inside the cooking slot is `Items.SEA_PICKLE`, transform the output `ItemStack` to insert a hidden custom NBT flag `is_drone_summoner: 1b` and append the visual enchantment glowing glint component (`EnchantmentGlint`).
+
+---
+
+### MODULE 4: THE FLYING PET DRONE AND REMOTE CONTROLLER
+- Action: Create a new custom Entity class file `CustomAnimatedMob.java` inside `net.minecraft.world.entity.decoration/` extending `ArmorStand`. Then, update `net.minecraft.world.item.SeaPickleItem` (or custom use logic) to intercept the item trigger.
+- Mechanics:
+  - If a player interacts with the ground holding a Sea Pickle containing the NBT tag `is_drone_summoner: 1b`, intercept the click and cancel default block placement.
+  - Read the latest indexed `build(number).nbt` file from the disk. For every captured block blockstate offset data, spawn a custom `CustomAnimatedMob` configured as invisible, static (`NoGravity: 1b`), and fully non-collidable (`Marker: 1b`), setting the scaled custom block onto its head armor item slot.
+  - Consume the custom Sea Pickle and drop a modified **Copper Ingot** into the player's inventory, loaded with an NBT identifier tied directly to this specific drone entity group to act as a Remote Controller.
+  - **Drone Tick Loop (`tick()`):** If the player is actively holding the custom Copper Ingot in their hotbar, the Drone group flies smoothly in mid-air matching the player's real-time 3D look view vector matrix (`getLookAngle`). If the player crouches (Shifts) while holding it, trigger `startRiding()` to mount the drone and fly inside it. If the item is swapped out of the hotbar, switch the drone to autonomous Pet Follow Mode, making it fly behind and trail the owner safely.
+
+---
+
+### MODULE 5: POWER SUPPLY & WEATHERED LIGHTNING ROD (Grindstone Fusion)
+- Target File: `purpur-server/src/main/java/net/minecraft/world/inventory/GrindstoneMenu.java`
+- Instructions: Register two unique inventory conversion recipes inside the Grindstone interface slots:
+  1. Top Slot: `Items.SEA_PICKLE` + Bottom Slot: `Items.DIAMOND` = Outputs an **Oxidized Lightning Rod** (modified lightning rod block item with max green weathering blockstate data, honey-waxed properties, and a custom energy tracking NBT tag).
+  2. Top Slot: `Items.YELLOW_CORAL` + Bottom Slot: `Items.CAKE` = Outputs a **Charged Coral**.
+- **Oxidized Lightning Rod Block Logic:** When this modified block is placed down, check if the block beneath it is a Gold, Iron, or Copper block. If valid, summon **3 native lightning strikes** instantly. Every **20 real-life minutes**, trigger **5 lightning strikes**. Each strike charges the block's internal state memory with **100 Creepvolts**.
+- Right-clicking this block with a vanilla **Emerald** drains 300 Creepvolts to turn it into an enchanted **Charged Emerald**. Holding this emerald for 5 seconds shocks the player (spawns shock sparks, deals small tick damage). Attacking an entity discharges the current into them for damage.
+
+---
+
+### MODULE 6: THE ENERGIZED MASTERIZER (Stelliden Metal)
+- Target: Proximity block trigger listener inside `ServerLevel`.
+- Mechanics: Scan for a custom multi-block station setup: a **Fletcher Table** placed directly next to a **Loom**. Behind each block, there must be an Iron Block with a Lever attached.
+- If a player drops/places 1 Iron Ingot onto the Fletcher Table and the Charged Emerald onto the Loom, and flips **both levers simultaneously**, consume the items, strike an aesthetic zero-damage lightning bolt, and reward a custom enchanted iron ingot item named **Stelliden**.
+
+---
+
+### MODULE 7: MACHINE STATE MACHINE (Stelliden Core)
+- Target File: Handler for using the Stelliden item.
+- Inject Logic: If a player places **Coarse Dirt** (`Blocks.COARSE_DIRT`) as bounding markers, equips the Stelliden item, breaks both dirt blocks, and **crouches (Shifts)**, save the entire tridimensional structure relative to a base reference point `(0,0)`.
+- Drop a custom Iron Nugget named **State 1** (renamable to vehicle states, e.g., `car-parked`).
+- Subsequent recordings of changes on the exact structure calculate the delta relative offsets (e.g., structure moving 5 blocks forward = vector `0,5`) and save them as **State 2 nuggets**, all mathematically anchored by code to a custom Iron Ingot renamed as the Master Vehicle Core.
+- Clicking the base state nugget spawns the static non-collidable Armor Stand build frame (crouching despawns it). Clicking the other state nuggets shifts the positions and transmutes the blocks into the new relative offset poses instantly.
+
+---
+
+### MODULE 8: TACTICAL BUBBLE CORAL
+- Target File: Handler for using the Charged Coral item.
+- Inject Logic:
+  - **Shift + Click:** Fires an invisible `Snowball` projectile that lasts 20 seconds. An invisible Armor Stand follows it displaying blue stained-glass blocks and water bubble particles. If the player right-clicks this bubble while holding any block in their inventory, destroy the projectile and place that block into the world grid at that exact coordinate.
+  - **Entity Hit:** If it hits an entity without a shield, paralyze them inside a giant bubble particle wrapper (2x scale). Spawn an invisible `Allay` with an erratic flight path AI, forcing the trapped entity to levitate at its center for 10 seconds before popping. If the target blocks with a shield, reverse the vectors to trap the shooter instead.
+  - **Self Crouch:** Crouching with the item idle creates a small bubble at the player's feet, triggering creative flight capabilities (`abilities.mayfly = true`) for **30 seconds**, followed by a **Water Breathing** hotbar effect icon for another 30 seconds.
+
+Please write and inject all requested Java codes directly into the workspace files. Once complete, push the changes to trigger the automated GitHub Actions compiler workflow to compile our modified server .jar file.
